@@ -1,0 +1,128 @@
+#!/usr/bin/env python2
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Oct 21 15:52:07 2017
+
+@author: asmita
+"""
+
+import numpy as np
+
+import time
+start_time = time.time()
+
+def softmax(z, derivative = False):
+    if derivative == True:
+        J = - (z[..., None] * z[:, None, :] )#No-diagonal Jacobian
+        iy, ix = np.diag_indices_from(J[0])
+        J[:, iy, ix] = z * (1.0 - z) #Diagonal
+        return J.sum(axis=1)
+    z = z*1.0
+    e_z = np.exp(z - np.max(z, axis = 0))
+    op = e_z / e_z.sum(axis = 0)
+    #print (op)
+    return op
+
+def deriv_relu(z):
+    z[z<=0] = 0
+    z[z>0] = 1
+    return z
+
+def oneHotEncoding(data):
+    result = np.array(np.zeros((10), float))
+    result[data] = 1
+    return result
+
+#Load data
+from tensorflow.examples.tutorials.mnist import input_data
+mnist = input_data.read_data_sets("/home/asmita/data")
+
+X_train = mnist.train.images
+#X_train = np.concatenate((X_train, np.ones((len(X_train),1), float)), axis = 1)
+#X_train = X_train[:200,:]
+X_train = X_train.T
+y_train = mnist.train.labels.astype("int")
+y_train = (np.expand_dims(y_train, axis = 1))
+y_train_one_hot = []
+for yi in y_train:
+    y_train_one_hot.append(oneHotEncoding(yi))
+y_train_one_hot = (np.array(y_train_one_hot))
+#y_train_one_hot = y_train_one_hot[:200,:]
+print("X_train.shape=",X_train.shape,"  y_train.shape=",y_train.shape)
+
+#print xtest.shape, ytest.shape
+np.random.seed(1)
+n_inputs = X_train.shape[0]
+n_hidden = 300
+n_outputs = 10
+epoch = 100
+eta = 0.1
+weights_hidden = np.array(2 * np.random.random((n_hidden, n_inputs)) -1)
+bias_hidden = np.array(2 * np.random.random((n_hidden, 1)) -1)
+weights_output = np.array(2 * np.random.random((n_outputs, n_hidden)) -1)
+bias_output =  np.array(2 * np.random.random((n_outputs, 1)) -1)
+#print (weights_output)
+print ("-----Training 2-layer Neural Net without Momentum-----")
+for e in range(epoch):
+    #Forward propagation
+    activation = np.dot(weights_hidden, X_train) + bias_hidden
+    ReLU = np.array([[max(0, c) for c in i] for i in activation])
+    #print ("X training data at 0", X_train[0], "reluuuuuu", ReLU[0])
+    activation_2 = np.dot(weights_output, ReLU) + bias_output
+    output = softmax(activation_2.T) #10 column to 1 column
+    output_class = np.expand_dims(np.argmax(output, axis = 1), axis = 1)
+    #print np.sum(output, axis =0)
+    #print (output[0], output_class[0], y_train[0])
+    #Back propagation    
+    #print output_class
+    accuracy = 0.0
+    #print (output)
+    for o, yi in zip(output_class,y_train):
+        if o == yi:
+            print o, yi
+            accuracy += 1
+    if (e % 1) ==0:
+        print ("Epoch: ", e, "Accuracy", accuracy/(y_train.shape[0]))
+    error = -(y_train_one_hot - output)
+    delta = error.T
+    bias_output = bias_output - eta * delta
+    weights_output_change = np.dot(delta, ReLU.T)
+    weights_output = weights_output - eta * weights_output_change
+    delta_hidden = np.dot(weights_output.T, delta) * activation
+    bias_hidden = bias_hidden - eta * delta_hidden
+    weights_hidden_change = np.dot(delta_hidden, X_train.T)
+    weights_hidden = weights_hidden - eta * weights_hidden_change
+#    error_disp = np.mean((error)**2)
+    #error_disp = -np.mean(y_train_one_hot * np.log(output))
+    
+        #print softmax(output, derivative = True)
+#    output_derivative = error * output #softmax(output, derivative = True)
+#    hidden_error = output_derivative.dot(weights_output.T)
+#
+#    hidden_derivative = hidden_error * deriv_relu(ReLU)
+#    #Update weights
+#    weights_output = weights_output + (eta * ReLU.T.dot(output_derivative))
+#    weights_hidden = weights_hidden + (eta * X_train.T.dot(hidden_derivative))
+
+#print (output)
+#Predicting on test data
+
+X_test = mnist.test.images
+X_test = np.concatenate((X_test, np.ones((len(X_test),1), float)), axis = 1)
+y_test = mnist.test.labels.astype("int")
+y_test = np.expand_dims(y_train, axis = 1)
+y_test_one_hot = []
+for yi in y_test:
+    y_test_one_hot.append(oneHotEncoding(yi))
+y_test_one_hot = (np.array(y_test_one_hot))
+activation = np.dot(X_test, weights_hidden)
+ReLU = np.array([[max(0, c) for c in i] for i in activation])
+activation_2 = np.dot(ReLU, weights_output)
+output = softmax(activation_2) #10 column to 1 column
+output_class = np.expand_dims(np.argmax(output, axis = 1), axis = 1)
+error_test = 0.0
+for op, yi in zip(output_class, y_test):
+    if op != yi:
+        error_test += 1
+print (error_test/len(y_test))
+print("--- %s seconds ---" % (time.time() - start_time))
